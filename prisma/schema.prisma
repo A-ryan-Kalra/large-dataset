@@ -18,12 +18,22 @@ model user{
   email String @unique
   country String
   created_at DateTime @default(now())
+
+  @@index([country])
 }
 
 model export_job{
   id Int @id @default(autoincrement())
-  status String
+  status status @default(INCOMPLETE) 
   last_exported_id Int?
   filters Json?
   created_at DateTime @default(now())
+
+  @@index([last_exported_id])
+}
+
+enum status {
+ COMPLETE
+ INCOMPLETE
+ FAIL
 }
