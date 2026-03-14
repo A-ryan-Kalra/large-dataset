@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UserProps } from "@/components/show-data";
+import PageSize from "./page-size";
 
 export const columns: ColumnDef<UserProps>[] = [
   {
@@ -88,22 +89,28 @@ export const columns: ColumnDef<UserProps>[] = [
   },
   {
     accessorKey: "country",
-    header: () => <div className="">Amount</div>,
+    header: () => <div className="">Country</div>,
     cell: ({ row }) => {
-      // Format the amount as a dollar amount
-
       return <div className=" font-medium">{row.getValue("country")}</div>;
     },
   },
   {
-    accessorKey: "country",
-    header: () => <div className="">Amount</div>,
+    accessorKey: "created_at",
+    header: () => <div className="">Created At</div>,
     cell: ({ row }) => {
-      // Format the amount as a dollar amount
+      const date = new Date(row.getValue("created_at") as string);
 
-      return <div className=" font-medium">{row.getValue("country")}</div>;
+      return (
+        <div className=" font-medium">
+          {date.toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </div>
+      );
     },
   },
+
   // {
   //   id: "actions",
   //   enableHiding: false,
@@ -134,9 +141,15 @@ export const columns: ColumnDef<UserProps>[] = [
   //   },
   // },
 ];
-const DEFAULT_PAGE_SIZE = 20;
+let DEFAULT_PAGE_SIZE: number = 10;
+let DEFAULT_DIRECTION = "next";
 
-export default function DataTableDemo({ data }: { data: UserProps[] }) {
+export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
+  const [data, setData] = React.useState<UserProps[]>(userData);
+  const [nextCursor, setNextCursor] = React.useState<number>(1);
+  const [pageSize, setPageSize] = React.useState<number>(DEFAULT_PAGE_SIZE);
+  const [pageIndex, setPageIndex] = React.useState<number>(0);
+  const [cursorStack, setCursorStack] = React.useState<number[]>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -148,15 +161,15 @@ export default function DataTableDemo({ data }: { data: UserProps[] }) {
   const table = useReactTable({
     data,
     columns,
-    initialState: {
-      pagination: {
-        pageSize: DEFAULT_PAGE_SIZE,
-      },
-    },
+    // initialState: {
+    //   pagination: {
+    //     pageSize: pageSize,
+    //   },
+    // },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
@@ -166,8 +179,45 @@ export default function DataTableDemo({ data }: { data: UserProps[] }) {
       columnFilters,
       columnVisibility,
       rowSelection,
+      // pagination: {
+      //   pageIndex,
+      //   pageSize,
+      // },
     },
   });
+
+  async function fetchUsers(cursor: number, pageSize = 10, move = "next") {
+    DEFAULT_DIRECTION = move;
+    const res = await fetch(
+      `/api/users?cursor=${cursor ?? ""}&size=${pageSize}&move=${move}`,
+    );
+    const data = await res.json();
+    setData(data?.data);
+    console.log(data);
+  }
+
+  React.useEffect(() => {
+    if (data) {
+      setNextCursor(data[data.length - 1].id);
+    }
+  }, [data]);
+
+  const prevPage = () => {
+    const newStack = [...cursorStack];
+    const prevCursor = newStack.pop();
+    setCursorStack(newStack);
+    setPageIndex((prev) => prev - 1);
+    fetchUsers(prevCursor as number, DEFAULT_PAGE_SIZE, "prev");
+    // table.previousPage();
+  };
+
+  const nextPage = () => {
+    // DEFAULT_PAGE_SIZE += 10;
+    setCursorStack((prev) => [...prev, nextCursor]);
+    fetchUsers(nextCursor, DEFAULT_PAGE_SIZE, "next");
+    // table.nextPage();
+    setPageIndex((prev) => prev + 1);
+  };
 
   return (
     <div className="w-full">
@@ -207,73 +257,89 @@ export default function DataTableDemo({ data }: { data: UserProps[] }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup, idx) => (
-              <TableRow key={headerGroup.id + idx}>
-                {headerGroup.headers.map((header, idx) => {
-                  return (
-                    <TableHead key={header.id + idx}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row, idx) => (
-                <TableRow
-                  data-state={row.getIsSelected() && "selected"}
-                  key={row.id + idx}
-                >
-                  {row.getVisibleCells().map((cell, idx) => (
-                    <TableCell key={cell.id + idx}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
+      {/* React Suspense */}
+      <React.Suspense fallback={"Loading..."}>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup, idx) => (
+                <TableRow key={headerGroup.id + idx}>
+                  {headerGroup.headers.map((header, idx) => {
+                    return (
+                      <TableHead key={header.id + idx}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  className="h-24 text-center"
-                  colSpan={columns.length}
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row, idx) => (
+                  <TableRow
+                    data-state={row.getIsSelected() && "selected"}
+                    key={row.id + idx}
+                  >
+                    {row.getVisibleCells().map((cell, idx) => (
+                      <TableCell key={cell.id + idx}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    className="h-24 text-center"
+                    colSpan={columns.length}
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </React.Suspense>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-muted-foreground text-sm">
           {table.getFilteredSelectedRowModel().rows.length} of{" "}
           {table.getFilteredRowModel().rows.length} row(s) selected.
         </div>
-        <div className="space-x-2">
+
+        <div className="space-x-2 flex">
+          <PageSize
+            pageSize={DEFAULT_PAGE_SIZE}
+            setPageSize={(e: string) => {
+              DEFAULT_PAGE_SIZE = Number(e);
+              setPageSize(Number(e));
+              fetchUsers(data[0].id, DEFAULT_PAGE_SIZE, "pageSize");
+            }}
+          />
+
           <Button
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
+            // disabled={!table.getCanPreviousPage()}
+            disabled={cursorStack.length === 0}
+            onClick={prevPage}
             size="sm"
             variant="outline"
           >
             Previous
           </Button>
+
           <Button
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
+            // disabled={!table.getCanNextPage()}
+            disabled={!!!nextCursor}
+            onClick={nextPage}
             size="sm"
             variant="outline"
           >
