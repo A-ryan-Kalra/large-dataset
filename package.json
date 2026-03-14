@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "worker": "tsx watch app/worker/export-worker.ts",
+    "clear-queue": "tsx app/queue/clear-queue.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
@@ -15,6 +17,7 @@
     "bullmq": "^5.71.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-writer": "^1.6.0",
     "fast-csv": "^5.0.5",
     "ioredis": "^5.10.0",
     "lucide-react": "^0.577.0",

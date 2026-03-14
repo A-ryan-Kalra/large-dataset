@@ -12,7 +12,12 @@ import {
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
+import {
+  ArrowUpDown,
+  ChevronDown,
+  LoaderCircle,
+  MoreHorizontal,
+} from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -147,13 +152,15 @@ let DEFAULT_DIRECTION = "next";
 export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
   const [data, setData] = React.useState<UserProps[]>(userData);
   const [nextCursor, setNextCursor] = React.useState<number>(1);
-  const [pageSize, setPageSize] = React.useState<number>(DEFAULT_PAGE_SIZE);
-  const [pageIndex, setPageIndex] = React.useState<number>(0);
+  // const [pageSize, setPageSize] = React.useState<number>(DEFAULT_PAGE_SIZE);
+  // const [pageIndex, setPageIndex] = React.useState<number>(0);
   const [cursorStack, setCursorStack] = React.useState<number[]>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [jobId, setJobId] = React.useState<number>(0);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
+  const [loadingCsv, setLoadingCsv] = React.useState<boolean>(false);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
@@ -188,26 +195,24 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
 
   async function fetchUsers(cursor: number, pageSize = 10, move = "next") {
     DEFAULT_DIRECTION = move;
-    const res = await fetch(
-      `/api/users?cursor=${cursor ?? ""}&size=${pageSize}&move=${move}`,
-    );
-    const data = await res.json();
-    setData(data?.data);
-    console.log(data);
-  }
-
-  React.useEffect(() => {
-    if (data) {
-      setNextCursor(data[data.length - 1].id);
+    try {
+      const res = await fetch(
+        `/api/users?cursor=${cursor ?? ""}&size=${pageSize}&move=${move}`,
+      );
+      const data = await res.json();
+      setData(data?.data);
+      console.log(data);
+    } catch (error) {
+      console.error("Error something went wrong", error);
     }
-  }, [data]);
+  }
 
   const prevPage = () => {
     const newStack = [...cursorStack];
     const prevCursor = newStack.pop();
     setCursorStack(newStack);
-    setPageIndex((prev) => prev - 1);
     fetchUsers(prevCursor as number, DEFAULT_PAGE_SIZE, "prev");
+    // setPageIndex((prev) => prev - 1);
     // table.previousPage();
   };
 
@@ -216,8 +221,60 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
     setCursorStack((prev) => [...prev, nextCursor]);
     fetchUsers(nextCursor, DEFAULT_PAGE_SIZE, "next");
     // table.nextPage();
-    setPageIndex((prev) => prev + 1);
+    // setPageIndex((prev) => prev + 1);
   };
+
+  const handleExport = async () => {
+    setLoadingCsv(true);
+
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+      console.log(data);
+      setJobId(data?.jobId);
+    } catch (error) {
+      console.error("Unable to generate csv");
+    }
+  };
+
+  React.useEffect(() => {
+    if (data) {
+      setNextCursor(data[data.length - 1].id);
+    }
+  }, [data]);
+
+  React.useEffect(() => {
+    if (!jobId) return;
+    let isChecking = false;
+
+    const interval = setInterval(async () => {
+      if (isChecking) return;
+      isChecking = true;
+
+      try {
+        const res = await fetch(`/api/export-status/${jobId}`);
+        const data = await res.json();
+
+        if (data.job.status === "COMPLETE") {
+          setLoadingCsv(false);
+          clearInterval(interval);
+          window.location.href = `/api/export-download/${jobId}`;
+        }
+      } catch (err) {
+        console.error("Failed to check export status", err);
+      } finally {
+        isChecking = false;
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [jobId]);
 
   return (
     <div className="w-full">
@@ -230,33 +287,45 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
           placeholder="Filter emails..."
           value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="ml-auto" variant="outline">
-              Columns <ChevronDown />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column, idx) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    checked={column.getIsVisible()}
-                    className="capitalize"
-                    key={column.id + idx}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex flex-col gap-y-2 w-full">
+          <Button
+            className="ml-auto cursor-pointer"
+            onClick={handleExport}
+            disabled={loadingCsv}
+            variant="outline"
+          >
+            {loadingCsv ? <LoaderCircle className="animate-spin" /> : "Export"}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="ml-auto" variant="outline">
+                Columns <ChevronDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column, idx) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      checked={column.getIsVisible()}
+                      className="capitalize"
+                      key={column.id + idx}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
       {/* React Suspense */}
       <React.Suspense fallback={"Loading..."}>
         <div className="rounded-md border">
@@ -321,7 +390,7 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
             pageSize={DEFAULT_PAGE_SIZE}
             setPageSize={(e: string) => {
               DEFAULT_PAGE_SIZE = Number(e);
-              setPageSize(Number(e));
+              // setPageSize(Number(e));
               fetchUsers(data[0].id, DEFAULT_PAGE_SIZE, "pageSize");
             }}
           />
