@@ -1,4 +1,4 @@
-import ShowData from "@/components/show-data";
+import ShowData, { UserProps } from "@/components/show-data";
 import { db } from "@/lib/db";
 
 type Props = {
@@ -10,14 +10,20 @@ type Props = {
 export default async function Home({ searchParams }: Props) {
   const props = await searchParams;
 
-  console.log(props);
+  let users: UserProps[] = [];
 
-  const users = await db.user.findMany({
-    where: {
-      country: { equals: props?.country, mode: "insensitive" },
-    },
-    take: 1000,
-  });
+  try {
+    users = await db.user.findMany({
+      where: {
+        country: { equals: props?.country, mode: "insensitive" },
+      },
+
+      cursor: { id: 1 },
+      take: 10,
+    });
+  } catch (error) {
+    console.error("Something went wrong ", error);
+  }
 
   return (
     <main>
