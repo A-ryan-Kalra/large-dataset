@@ -4,7 +4,14 @@ import { Worker } from "bullmq";
 import fs from "fs";
 import path from "path";
 
+// Read 1000 rows at a time
 const BATCH_SIZE = 1000;
+type ExportFilters = {
+  country?: string;
+  cursor?: number;
+  email?: string;
+  columns?: string[];
+};
 
 const worker = new Worker(
   "export-users",
@@ -12,16 +19,40 @@ const worker = new Worker(
     console.log("Worker is running...");
 
     const { jobId } = job.data;
-    console.log("jobId", jobId);
 
     let stream: fs.WriteStream | null = null;
 
     try {
+      const conditions: string[] = [];
+      const values: any[] = [];
+      let index = 2;
+
       const exportJob = await db.export_job.findUnique({
         where: {
           id: jobId,
         },
       });
+      const filters = exportJob?.filters as ExportFilters;
+      if (filters?.country) {
+        conditions.push(`country = $${index}`);
+        values.push(filters.country);
+        index++;
+      }
+
+      if (filters?.email) {
+        conditions.push(`email ILIKE $${index}`);
+        values.push(`%${filters.email}%`);
+        index++;
+      }
+      // let selectColumns = "id,first_name,last_name,email,country,created_at";
+      // if (filters?.columns?.length !== 0) {
+      //   selectColumns = filters.columns!.join(",");
+      // }
+      let selectColumns = filters.columns!.join(",");
+      console.log("selectColumns", selectColumns);
+
+      const whereFilters =
+        conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
 
       if (!exportJob) throw new Error("Job not found");
 
@@ -34,11 +65,20 @@ const worker = new Worker(
       }
 
       const filePath = path.join(exportDir, `export-${jobId}.csv`);
-      console.log("filePath", filePath);
 
       stream = fs.createWriteStream(filePath, { flags: "a" });
 
       while (true) {
+        const query = `
+SELECT
+${selectColumns}
+FROM "user"
+WHERE id > $1
+${whereFilters}
+ORDER BY id ASC
+LIMIT ${BATCH_SIZE}
+`;
+
         const users: {
           id: number;
           first_name: string;
@@ -46,28 +86,31 @@ const worker = new Worker(
           email: string;
           country: string;
           created_at: Date;
-        }[] = await db.$queryRaw`
-        SELECT
-        id,
-        first_name,
-        last_name,
-        email,
-        country
-        FROM "user"
-        WHERE id > ${cursor}
-        ORDER BY id ASC
-        LIMIT ${BATCH_SIZE}
-        `;
+        }[] = await db.$queryRawUnsafe(query, cursor, ...values);
+
+        // await db.$queryRaw`
+        // SELECT
+        // id,
+        // first_name,
+        // last_name,
+        // email,
+        // country
+        // FROM "user"
+        // WHERE id > ${cursor}
+        // ORDER BY id ASC
+        // LIMIT ${BATCH_SIZE}
+        // `;
 
         if (users.length === 0) {
           break;
         }
 
         let lastIdInBatch = cursor;
-        let row = "id,first_name,last_name,email,country,created_at\n";
+
+        let row = `${selectColumns}\n`;
         stream.write(row);
         for (const user of users) {
-          row = `${user.id},${user.first_name},${user.last_name},${user.email},${user.country},${user.created_at}\n`;
+          const row = `${filters.columns?.map((col) => (user as any)[col] ?? "").join(",")}\n`;
 
           stream.write(row);
           lastIdInBatch = user.id;

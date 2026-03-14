@@ -12,11 +12,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const queue = await exportQueue.add(
-      "export",
-      { jobId: job.id },
-      { attempts: 3 },
-    );
+    await exportQueue.add("export", { jobId: job.id }, { attempts: 3 });
 
     return NextResponse.json(
       {

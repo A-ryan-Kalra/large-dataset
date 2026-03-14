@@ -38,7 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UserProps } from "@/components/show-data";
-import PageSize from "./page-size";
+import ListData from "./list-data";
 
 export const columns: ColumnDef<UserProps>[] = [
   {
@@ -152,8 +152,25 @@ let DEFAULT_DIRECTION = "next";
 export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
   const [data, setData] = React.useState<UserProps[]>(userData);
   const [nextCursor, setNextCursor] = React.useState<number>(1);
-  // const [pageSize, setPageSize] = React.useState<number>(DEFAULT_PAGE_SIZE);
-  // const [pageIndex, setPageIndex] = React.useState<number>(0);
+  const [filter, setFilter] = React.useState<{
+    country: string;
+    page: number;
+    email: string;
+    columns: string[];
+  }>({
+    country: "",
+    page: 1,
+    email: "",
+    columns: [
+      "id",
+      "first_name",
+      "last_name",
+      "email",
+      "country",
+      "created_at",
+    ],
+  });
+
   const [cursorStack, setCursorStack] = React.useState<number[]>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [jobId, setJobId] = React.useState<number>(0);
@@ -201,7 +218,17 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
       );
       const data = await res.json();
       setData(data?.data);
-      console.log(data);
+    } catch (error) {
+      console.error("Error something went wrong", error);
+    }
+  }
+  async function searchByCountry(page = 1, pageSize = 10, country: string) {
+    try {
+      const res = await fetch(
+        `/api/users/query?page=${page}&size=${pageSize}&country=${country}`,
+      );
+      const data = await res.json();
+      setData(data?.data);
     } catch (error) {
       console.error("Error something went wrong", error);
     }
@@ -211,17 +238,24 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
     const newStack = [...cursorStack];
     const prevCursor = newStack.pop();
     setCursorStack(newStack);
-    fetchUsers(prevCursor as number, DEFAULT_PAGE_SIZE, "prev");
-    // setPageIndex((prev) => prev - 1);
-    // table.previousPage();
+
+    if (filter?.country) {
+      searchByCountry(filter.page - 1, DEFAULT_PAGE_SIZE - 1, filter.country);
+      setFilter((prev) => ({ ...prev, page: prev.page - 1 }));
+    } else {
+      fetchUsers(prevCursor as number, DEFAULT_PAGE_SIZE, "prev");
+    }
   };
 
   const nextPage = () => {
-    // DEFAULT_PAGE_SIZE += 10;
     setCursorStack((prev) => [...prev, nextCursor]);
-    fetchUsers(nextCursor, DEFAULT_PAGE_SIZE, "next");
-    // table.nextPage();
-    // setPageIndex((prev) => prev + 1);
+
+    if (filter?.country) {
+      searchByCountry(filter.page + 1, DEFAULT_PAGE_SIZE, filter.country);
+      setFilter((prev) => ({ ...prev, page: prev.page + 1 }));
+    } else {
+      fetchUsers(nextCursor, DEFAULT_PAGE_SIZE, "next");
+    }
   };
 
   const handleExport = async () => {
@@ -230,11 +264,15 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
     try {
       const res = await fetch("/api/export", {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          country: filter.country,
+          email: filter.email,
+          columns: filter.columns,
+        }),
       });
 
       const data = await res.json();
-      console.log(data);
+
       setJobId(data?.jobId);
     } catch (error) {
       console.error("Unable to generate csv");
@@ -281,11 +319,20 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
       <div className="flex items-center gap-2 py-4">
         <Input
           className="max-w-sm"
-          onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
-          }
+          onChange={(event) => {
+            table.getColumn("email")?.setFilterValue(event.target.value);
+            setFilter((prev) => ({ ...prev, email: event.target.value }));
+          }}
           placeholder="Filter emails..."
           value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
+        />
+        <ListData
+          values={["USA", "INDIA", "GERMANY"]}
+          defaultData={"Select Country"}
+          setDefaultData={(e: string) => {
+            setFilter((prev) => ({ ...prev, country: e }));
+            searchByCountry(filter.page, DEFAULT_PAGE_SIZE, e);
+          }}
         />
         <div className="flex flex-col gap-y-2 w-full">
           <Button
@@ -310,6 +357,21 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
                 .map((column, idx) => {
                   return (
                     <DropdownMenuCheckboxItem
+                      onClick={() => {
+                        setFilter((prev) => {
+                          const columnId = column?.id;
+                          if (!columnId) return prev;
+
+                          const exists = prev.columns.includes(columnId);
+
+                          return {
+                            ...prev,
+                            columns: exists
+                              ? prev.columns.filter((val) => val !== column?.id)
+                              : [...prev.columns, columnId],
+                          };
+                        });
+                      }}
                       checked={column.getIsVisible()}
                       className="capitalize"
                       key={column.id + idx}
@@ -386,9 +448,10 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
         </div>
 
         <div className="space-x-2 flex">
-          <PageSize
-            pageSize={DEFAULT_PAGE_SIZE}
-            setPageSize={(e: string) => {
+          <ListData
+            values={["10", "100", "1000"]}
+            defaultData={DEFAULT_PAGE_SIZE.toString()}
+            setDefaultData={(e: string) => {
               DEFAULT_PAGE_SIZE = Number(e);
               // setPageSize(Number(e));
               fetchUsers(data[0].id, DEFAULT_PAGE_SIZE, "pageSize");

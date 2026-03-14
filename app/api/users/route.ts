@@ -6,9 +6,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const direction = searchParams.get("move");
     const cursor = Number(searchParams.get("cursor"));
+    const country = searchParams.get("country");
     const pageSize = Number(searchParams.get("size") ?? 10);
 
     let users;
+    /* Show next page */
     if (direction === "next") {
       users = await db.user.findMany({
         take: pageSize + 1,
@@ -18,6 +20,7 @@ export async function GET(req: Request) {
         }),
         orderBy: { id: "asc" },
       });
+      /*  Show prev page */
     } else if (direction === "prev") {
       users = await db.user.findMany({
         where: {
@@ -30,6 +33,7 @@ export async function GET(req: Request) {
       });
 
       users.reverse();
+      /* Update pageSize */
     } else {
       users = await db.user.findMany({
         take: pageSize + 1,
