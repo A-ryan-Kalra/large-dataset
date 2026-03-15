@@ -18,17 +18,17 @@ export async function GET(req: Request) {
           cursor: { id: cursor },
           skip: 1,
         }),
-        orderBy: { created_at: "desc" },
+        orderBy: { id: "desc" },
       });
       /*  Show prev page */
     } else if (direction === "prev") {
       data = await db.export_job.findMany({
         where: {
           id: {
-            lte: cursor,
+            gte: cursor,
           },
         },
-        orderBy: { created_at: "asc" },
+        orderBy: { id: "asc" },
         take: pageSize,
       });
 
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
           cursor: { id: cursor },
           // skip: 1,
         }),
-        orderBy: { created_at: "desc" },
+        orderBy: { id: "desc" },
       });
     }
 

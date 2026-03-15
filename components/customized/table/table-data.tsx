@@ -218,7 +218,7 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
       );
       const data = await res.json();
       setData(data?.data);
-      setNextCursor(data?.nextCursor);
+      //  setNextCursor(data?.nextCursor);
     } catch (error) {
       console.error("Error something went wrong", error);
     }
@@ -281,8 +281,10 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
   };
 
   React.useEffect(() => {
-    setNextCursor(data[data.length - 1]?.id);
-  }, []);
+    if (data.length > 0) {
+      setNextCursor(data[data.length - 1]?.id);
+    }
+  }, [data]);
 
   React.useEffect(() => {
     if (!jobId) return;

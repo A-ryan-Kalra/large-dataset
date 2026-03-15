@@ -241,35 +241,6 @@ export default function StatusTableDemo({
     setNextCursor(data[data.length - 1]?.id);
   }, []);
 
-  React.useEffect(() => {
-    if (!jobId) return;
-    let isChecking = false;
-
-    const interval = setInterval(async () => {
-      if (isChecking) return;
-      isChecking = true;
-
-      try {
-        const res = await fetch(`/api/export-status/${jobId}`);
-        const data = await res.json();
-
-        if (data.job.status === "COMPLETE") {
-          setLoadingCsv(false);
-          clearInterval(interval);
-          window.location.href = `/api/export-download/${jobId}`;
-        }
-      } catch (err) {
-        console.error("Failed to check export status", err);
-      } finally {
-        isChecking = false;
-      }
-    }, 2000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [jobId]);
-
   return (
     <div className="w-full">
       <div className="flex items-center gap-2 py-4">
