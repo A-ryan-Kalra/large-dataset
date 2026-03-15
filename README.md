@@ -111,18 +111,15 @@ LIMIT $batchSize
 
 This avoids full table scans and keeps queries efficient even with millions of rows.
 
-**Batch Processing**
+### 1. **Batch Processing**
+- The worker reads rows in batches(Eg. 1000) and appends them to the CSV file, keeping memory usage low.
 
-The worker reads rows in batches(Eg. 1000) and appends them to the CSV file, keeping memory usage low.
+### 2. **Background Job Processing**
+- Exports run through a BullMQ queue so API requests remain fast and the database is not overloaded.
 
-**Background Job Processing**
-
-Exports run through a BullMQ queue so API requests remain fast and the database is not overloaded.
-
-**Resumable Export**
-
-Each export job stores the last processed cursor.
-If the worker fails, the job can resume from the last processed row.
+### 3. **Resumable Export**
+- Each export job stores the last processed cursor.
+- If the worker fails, the job can resume from the last processed row.
 
 ```
 If no rows returned
