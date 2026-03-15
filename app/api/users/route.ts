@@ -6,10 +6,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const direction = searchParams.get("move");
     const cursor = Number(searchParams.get("cursor"));
-    const country = searchParams.get("country");
+    // const country = searchParams.get("country");
     const pageSize = Number(searchParams.get("size") ?? 10);
 
     let users;
+
     /* Show next page */
     if (direction === "next") {
       users = await db.user.findMany({

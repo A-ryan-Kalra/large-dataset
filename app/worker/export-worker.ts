@@ -44,10 +44,7 @@ const worker = new Worker(
         values.push(`%${filters.email}%`);
         index++;
       }
-      // let selectColumns = "id,first_name,last_name,email,country,created_at";
-      // if (filters?.columns?.length !== 0) {
-      //   selectColumns = filters.columns!.join(",");
-      // }
+
       let selectColumns = filters.columns!.join(",");
       console.log("selectColumns", selectColumns);
 
@@ -67,6 +64,9 @@ const worker = new Worker(
       const filePath = path.join(exportDir, `export-${jobId}.csv`);
 
       stream = fs.createWriteStream(filePath, { flags: "a" });
+
+      let row = `${selectColumns}\n`;
+      stream.write(row);
 
       while (true) {
         const query = `
@@ -88,29 +88,29 @@ LIMIT ${BATCH_SIZE}
           created_at: Date;
         }[] = await db.$queryRawUnsafe(query, cursor, ...values);
 
-        // await db.$queryRaw`
-        // SELECT
-        // id,
-        // first_name,
-        // last_name,
-        // email,
-        // country
-        // FROM "user"
-        // WHERE id > ${cursor}
-        // ORDER BY id ASC
-        // LIMIT ${BATCH_SIZE}
-        // `;
-
         if (users.length === 0) {
           break;
         }
 
         let lastIdInBatch = cursor;
 
-        let row = `${selectColumns}\n`;
-        stream.write(row);
         for (const user of users) {
-          const row = `${filters.columns?.map((col) => (user as any)[col] ?? "").join(",")}\n`;
+          const row = `${filters.columns
+            ?.map((col) => {
+              if (col === "created_at") {
+                const value = (user as any)[col];
+                if (!value) return "";
+
+                return new Date(value).toLocaleString("en-IN", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "Asia/Kolkata",
+                });
+              }
+
+              return (user as any)[col] ?? "";
+            })
+            .join(",")}\n`;
 
           stream.write(row);
           lastIdInBatch = user.id;

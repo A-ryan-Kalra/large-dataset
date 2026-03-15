@@ -106,7 +106,7 @@ export const columns: ColumnDef<UserProps>[] = [
       const date = new Date(row.getValue("created_at") as string);
 
       return (
-        <div className=" font-medium">
+        <div className="font-medium">
           {date.toLocaleString("en-IN", {
             dateStyle: "medium",
             timeStyle: "short",
@@ -280,8 +280,8 @@ export default function DataTableDemo({ userData }: { userData: UserProps[] }) {
   };
 
   React.useEffect(() => {
-    if (data) {
-      setNextCursor(data[data.length - 1].id);
+    if (data.length > 0) {
+      setNextCursor(data[data.length - 1]?.id);
     }
   }, [data]);
 

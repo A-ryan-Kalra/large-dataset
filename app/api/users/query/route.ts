@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    console.log("searchParams", searchParams);
-    const cursor = searchParams.get("cursor");
+    // console.log("searchParams", searchParams);
+    // const cursor = searchParams.get("cursor");
     const pageSize = searchParams.get("size");
     const page = searchParams.get("page");
     const country = searchParams.get("country");

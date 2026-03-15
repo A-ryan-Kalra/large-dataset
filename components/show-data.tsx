@@ -1,7 +1,3 @@
-// "use client";
-
-// import { useEffect, useState } from "react";
-
 export type UserProps = {
   id: number;
   first_name: string;
@@ -14,14 +10,6 @@ export type UserProps = {
 import DataTableDemo from "./customized/table/table-data";
 
 function ShowData({ users }: { users: UserProps[] }) {
-  // const [data, setData] = useState<UserProps[]>();
-  // async function feedDatqa() {
-  //   setData(data);
-  // }
-  // useEffect(() => {
-  //   feedDatqa();
-  // }, []);
-
   return (
     <div className="p-3 h-full">
       <div className="w-full min-h-32 p-2">
