@@ -11,8 +11,18 @@ export async function POST(req: Request) {
         filters: filters,
       },
     });
-
-    await exportQueue.add("export", { jobId: job.id }, { attempts: 3 });
+    // Max attempts- 3 with 2 sec delay
+    await exportQueue.add(
+      "export",
+      { jobId: job.id },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000,
+        },
+      },
+    );
 
     return NextResponse.json(
       {

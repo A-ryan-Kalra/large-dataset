@@ -45,7 +45,7 @@ const worker = new Worker(
         index++;
       }
 
-      let selectColumns = filters.columns!.join(",");
+      let selectColumns = filters.columns?.join(",");
       console.log("selectColumns", selectColumns);
 
       const whereFilters =
@@ -63,10 +63,18 @@ const worker = new Worker(
 
       const filePath = path.join(exportDir, `export-${jobId}.csv`);
 
+      const fileExists = fs.existsSync(filePath);
+
       stream = fs.createWriteStream(filePath, { flags: "a" });
 
-      let row = `${selectColumns}\n`;
-      stream.write(row);
+      if (!fileExists) {
+        stream.write(`${selectColumns}\n`);
+      }
+
+      // stream = fs.createWriteStream(filePath, { flags: "a" });
+
+      let row;
+      // stream.write(row);
 
       while (true) {
         const query = `
@@ -150,6 +158,8 @@ LIMIT ${BATCH_SIZE}
   },
   {
     connection: redisConnection,
+    lockDuration: 60000, // 1 minute
+    maxStalledCount: 5,
     // concurrency: 2,
   },
 );
