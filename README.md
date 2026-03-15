@@ -55,6 +55,9 @@ When the Export button is clicked:
 - Once the export job status becomes COMPLETE, the generated CSV file is automatically downloaded.
 - This approach ensures the export runs asynchronously without blocking the API or overwhelming the database.
 
+> [!IMPORTANT]
+> Use the **Status** tab to monitor the progress of the CSV generation and download the file once it is available.
+
 ---
 # Running the Project
 
