@@ -21,7 +21,8 @@ services:
       - "6379:6379"
 
   app:
-    build: .
+    image: aryankalra363/large-dataset-export:latest
+    # build: .
     container_name: next_app
     ports:
       - "3000:3000"
@@ -37,7 +38,8 @@ services:
       - exports_data:/app/app/export
 
   worker:
-    build: .
+    # build: .
+    image: aryankalra363/large-dataset-export:latest
     container_name: bullmq_worker
     command: npm run worker
     depends_on:
