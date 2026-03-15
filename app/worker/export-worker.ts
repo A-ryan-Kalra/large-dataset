@@ -3,6 +3,7 @@ import { redisConnection } from "@/lib/redis";
 import { Worker } from "bullmq";
 import fs from "fs";
 import path from "path";
+import { finished } from "stream/promises";
 
 // Read 1000 rows at a time
 const BATCH_SIZE = 1000;
@@ -36,10 +37,13 @@ const worker = new Worker(
       let index = 2;
 
       const exportJob = await db.export_job.findUnique({
-        where: {
-          id: jobId,
-        },
+        where: { id: jobId },
       });
+
+      if (!exportJob) {
+        throw new Error(`Export job ${jobId} not found`);
+      }
+
       const filters = exportJob?.filters as ExportFilters;
       if (filters?.country) {
         conditions.push(`country = $${index}`);
@@ -53,13 +57,16 @@ const worker = new Worker(
         index++;
       }
 
-      let selectColumns = filters.columns?.join(",");
+      const columns = filters?.columns?.length
+        ? filters.columns
+        : ["id", "first_name", "last_name", "email", "country", "created_at"];
+
+      const selectColumns = columns.join(",");
       console.log("selectColumns", selectColumns);
 
       const whereFilters =
         conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
 
-      if (!exportJob) throw new Error("Job not found");
       let cursor = exportJob.last_exported_id ?? 0;
 
       const exportDir = path.join(process.cwd(), "app/export");
@@ -93,6 +100,7 @@ LIMIT ${BATCH_SIZE}
           ...values,
         );
 
+        await new Promise((resolve) => setTimeout(resolve, 0));
         if (users.length === 0) {
           break;
         }
@@ -130,14 +138,17 @@ LIMIT ${BATCH_SIZE}
         });
       }
 
-      stream.close();
-
+      if (stream) {
+        stream.end();
+        await finished(stream); // This is cleaner and more reliable
+      }
       await db.export_job.update({
         where: { id: jobId },
         data: {
           status: "COMPLETE",
         },
       });
+      return { message: "success" };
     } catch (error) {
       console.error("Export failed:", error);
 
@@ -155,11 +166,16 @@ LIMIT ${BATCH_SIZE}
   },
   {
     connection: redisConnection,
-    lockDuration: 60000, // 1 minute
-    maxStalledCount: 5,
-    // concurrency: 2,
+    concurrency: 2,
+    lockDuration: 300000, // 5 minutes — adjust to > max expected batch time
+    lockRenewTime: 10000, // renew every 10s (default is lockDuration/4-ish)
+    maxStalledCount: 3, // or higher
   },
 );
+
+worker.on("active", async (job) => {
+  console.log("Started job:", job.id);
+});
 
 worker.on("completed", (job) => {
   console.log(`Job ${job.id} completed`);
@@ -167,4 +183,8 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   console.error(`Job ${job?.id} failed: `, err);
+});
+
+worker.on("stalled", (jobId) => {
+  console.warn(`Job ${jobId} stalled`);
 });
