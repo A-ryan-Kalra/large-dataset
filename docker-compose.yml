@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: large_dataset
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    container_name: next_app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/large_dataset
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run start"
+    volumes:
+      - exports_data:/app/app/export
+
+  worker:
+    build: .
+    container_name: bullmq_worker
+    command: npm run worker
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/large_dataset
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - exports_data:/app/app/export
+
+volumes:
+  postgres_data:
+  exports_data:
