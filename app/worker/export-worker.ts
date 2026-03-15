@@ -13,13 +13,21 @@ type ExportFilters = {
   columns?: string[];
 };
 
+type UserType = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  country: string;
+  created_at: Date;
+};
+
 const worker = new Worker(
   "export-users",
   async (job) => {
     console.log("Worker is running...");
 
     const { jobId } = job.data;
-
     let stream: fs.WriteStream | null = null;
 
     try {
@@ -52,30 +60,22 @@ const worker = new Worker(
         conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
 
       if (!exportJob) throw new Error("Job not found");
-
       let cursor = exportJob.last_exported_id ?? 0;
 
       const exportDir = path.join(process.cwd(), "app/export");
-
       if (!fs.existsSync(exportDir)) {
         fs.mkdirSync(exportDir, { recursive: true });
       }
 
       const filePath = path.join(exportDir, `export-${jobId}.csv`);
-
       const fileExists = fs.existsSync(filePath);
-
       stream = fs.createWriteStream(filePath, { flags: "a" });
 
       if (!fileExists) {
         stream.write(`${selectColumns}\n`);
       }
 
-      // stream = fs.createWriteStream(filePath, { flags: "a" });
-
       let row;
-      // stream.write(row);
-
       while (true) {
         const query = `
 SELECT
@@ -87,14 +87,11 @@ ORDER BY id ASC
 LIMIT ${BATCH_SIZE}
 `;
 
-        const users: {
-          id: number;
-          first_name: string;
-          last_name: string;
-          email: string;
-          country: string;
-          created_at: Date;
-        }[] = await db.$queryRawUnsafe(query, cursor, ...values);
+        const users: UserType[] = await db.$queryRawUnsafe(
+          query,
+          cursor,
+          ...values,
+        );
 
         if (users.length === 0) {
           break;

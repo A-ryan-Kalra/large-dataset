@@ -55,7 +55,8 @@ export async function GET(req: Request) {
     ) {
       nextItem = users?.pop();
       nextCursor = nextItem?.id;
-    } else {
+    }
+    if (direction === "prev") {
       nextCursor = users[0].id;
     }
 
