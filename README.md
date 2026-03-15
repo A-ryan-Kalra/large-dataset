@@ -46,6 +46,16 @@
 
 ---
 
+# Export Behaviour
+
+When the Export button is clicked:
+- An export job is created and added to the BullMQ queue.
+- A background worker starts processing the export in batches using cursor-based pagination.
+- The frontend polls the export status every 2–3 seconds.
+- Once the export job status becomes COMPLETE, the generated CSV file is automatically downloaded.
+- This approach ensures the export runs asynchronously without blocking the API or overwhelming the database.
+
+---
 # Running the Project
 
 ### 1. Clone repository
@@ -68,7 +78,7 @@ This starts:
 * Redis
 * Worker
 
-### 3. Seed database (generates 1M rows)
+### 3. Seed database If running without docker (generates 1M rows)
 
 ```
 npx prisma db seed
